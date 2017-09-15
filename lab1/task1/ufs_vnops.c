@@ -169,11 +169,11 @@ ufs_itimes_locked(struct vnode *vp)
 		DIP_SET(ip, i_mtime, ts.tv_sec);
 		DIP_SET(ip, i_mtimensec, ts.tv_nsec);
 	}
-	/*if (ip->i_flag & IN_CHANGE) {
+	if (ip->i_flag & IN_CHANGE) {
 		DIP_SET(ip, i_ctime, ts.tv_sec);
 		DIP_SET(ip, i_ctimensec, ts.tv_nsec);
 		DIP_SET(ip, i_modrev, DIP(ip, i_modrev) + 1);
-	}*/
+	}
 
  out:
 	ip->i_flag &= ~(IN_ACCESS | IN_CHANGE | IN_UPDATE);
@@ -488,8 +488,8 @@ ufs_getattr(ap)
 		vap->va_size = ip->i_din2->di_size;
 		vap->va_mtime.tv_sec = ip->i_din2->di_mtime;
 		vap->va_mtime.tv_nsec = ip->i_din2->di_mtimensec;
-		vap->va_ctime.tv_sec = ip->i_din2->di_ctime;
-		vap->va_ctime.tv_nsec = ip->i_din2->di_ctimensec;
+		vap->va_ctime.tv_sec = ip->i_din2->di_birthtime;
+		vap->va_ctime.tv_nsec = ip->i_din2->di_birthnsec;
 		vap->va_birthtime.tv_sec = ip->i_din2->di_birthtime;
 		vap->va_birthtime.tv_nsec = ip->i_din2->di_birthnsec;
 		vap->va_bytes = dbtob((u_quad_t)ip->i_din2->di_blocks);
