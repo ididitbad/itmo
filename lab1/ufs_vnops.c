@@ -169,11 +169,11 @@ ufs_itimes_locked(struct vnode *vp)
 		DIP_SET(ip, i_mtime, ts.tv_sec);
 		DIP_SET(ip, i_mtimensec, ts.tv_nsec);
 	}
-	if (ip->i_flag & IN_CHANGE) {
+	/*if (ip->i_flag & IN_CHANGE) {
 		DIP_SET(ip, i_ctime, ts.tv_sec);
 		DIP_SET(ip, i_ctimensec, ts.tv_nsec);
 		DIP_SET(ip, i_modrev, DIP(ip, i_modrev) + 1);
-	}
+	}*/
 
  out:
 	ip->i_flag &= ~(IN_ACCESS | IN_CHANGE | IN_UPDATE);
