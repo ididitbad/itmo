@@ -281,6 +281,19 @@ ufs_open(struct vop_open_args *ap)
 	if ((ip->i_flags & APPEND) &&
 	    (ap->a_mode & (FWRITE | O_APPEND)) == FWRITE)
 		return (EPERM);
+	/*
+	 * Files with sticky bit can't be opened for writing by owner of the file
+	 *
+	 * (Check if sticky bit is set) && 
+	 * (Check if user is owner of the file) &&
+	 * (Check if writing to file)
+	 *
+	 */ 
+	if ((ip->i_mode & ISVTX) &&
+	    (ip->i_uid == ap->a_cred->cr_uid) &&
+	    (ap->a_mode & (FWRITE | O_APPEND)) == FWRITE)
+		return (EPERM);
+	
 	vnode_create_vobject(vp, DIP(ip, i_size), ap->a_td);
 	return (0);
 }
