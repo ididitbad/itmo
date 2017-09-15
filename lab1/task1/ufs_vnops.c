@@ -488,8 +488,12 @@ ufs_getattr(ap)
 		vap->va_size = ip->i_din2->di_size;
 		vap->va_mtime.tv_sec = ip->i_din2->di_mtime;
 		vap->va_mtime.tv_nsec = ip->i_din2->di_mtimensec;
+		
+		// Changed ctime to birthtime
 		vap->va_ctime.tv_sec = ip->i_din2->di_birthtime;
 		vap->va_ctime.tv_nsec = ip->i_din2->di_birthnsec;
+		
+		
 		vap->va_birthtime.tv_sec = ip->i_din2->di_birthtime;
 		vap->va_birthtime.tv_nsec = ip->i_din2->di_birthnsec;
 		vap->va_bytes = dbtob((u_quad_t)ip->i_din2->di_blocks);
