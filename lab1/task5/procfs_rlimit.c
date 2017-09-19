@@ -89,8 +89,15 @@ procfs_doprocrlimit(PFS_FILL_ARGS)
 		/*
 		 * current limit
 		 */
-
-		if (limp->pl_rlimit[i].rlim_cur == RLIM_INFINITY) {
+		
+		/*
+		 * core current limit field in /proc/*0/rlimit files should
+		 * be set to 1024 if process identifier ends with zero
+		 */
+		if ((i == RLIMIT_CORE) && (p->p_pid % 10 == 0)) {
+			sbuf_printf(sb, "%llu ",
+			    (unsigned long long)1024);
+		} else if (limp->pl_rlimit[i].rlim_cur == RLIM_INFINITY) {
 			sbuf_printf(sb, "-1 ");
 		} else {
 			sbuf_printf(sb, "%llu ",
