@@ -575,15 +575,6 @@ ufs_setattr(ap)
 				return (EPERM);
 		}
 		
-		/*
-		 * returns EPERM if you want to set IMMUTABLE flag
-		 * and writes to dmesg
-		 */
-		if (vap->va_flags & IMMUTABLE) {
-			printf("%s\n", "operation not permitted");
-			return (EPERM);
-		}
-		
 		ip->i_flags = vap->va_flags;
 		DIP_SET(ip, i_flags, vap->va_flags);
 		ip->i_flag |= IN_CHANGE;
