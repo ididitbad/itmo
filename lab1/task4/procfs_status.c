@@ -190,7 +190,7 @@ procfs_doproccmdline(PFS_FILL_ARGS)
 		 * function behaviour changed so now if process has a
 		 * substring 'HIDE' in it's arguments label 'HIDDEN: '
 		 * appears in the beginning of cmdline
-		 * (when reading from /proc/*/cmdline )
+		 * (when reading from /proc/$pid/cmdline )
 		 */
 		sbuf_finish(sb);
 		
