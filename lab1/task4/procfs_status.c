@@ -60,6 +60,8 @@
 #include <fs/pseudofs/pseudofs.h>
 #include <fs/procfs/procfs.h>
 
+#include <sys/libkern.h>
+
 int
 procfs_doprocstatus(PFS_FILL_ARGS)
 {
@@ -182,6 +184,31 @@ procfs_doproccmdline(PFS_FILL_ARGS)
 	PROC_LOCK(p);
 	if (p->p_args && p_cansee(td, p) == 0) {
 		sbuf_bcpy(sb, p->p_args->ar_args, p->p_args->ar_length);
+		
+		
+		/*
+		 * function behaviour changed so now if process has a
+		 * substring 'HIDE' in it's arguments label 'HIDDEN: '
+		 * appears in the beginning of cmdline
+		 * (when reading from /proc/*/cmdline )
+		 */
+		sbuf_finish(sb);
+		
+		char tmp[sbuf_len(sb)];
+		int i, j;
+		for (i = 0, j = 0; i < sbuf_len(sb); i++) {
+			if (sb->s_buf[i] != 0) {
+				tmp[j++] = sb->s_buf[i];
+			}
+		}
+		tmp[j] = '\0';
+		
+		if (strstr(tmp, "HIDE\0") != NULL) {
+			sbuf_clear(sb);
+			sbuf_cat(sb, "HIDDEN: ");
+			sbuf_bcat(sb, p->p_args->ar_args, p->p_args->ar_length);
+		}		
+		
 		PROC_UNLOCK(p);
 		return (0);
 	}
