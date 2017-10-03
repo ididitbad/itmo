@@ -44,4 +44,6 @@ touch file
 touch file
 ./rename file /f/i/l/e
 
+ls
+
 ```
