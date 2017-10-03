@@ -3674,6 +3674,21 @@ again:
 		VOP_UNLOCK(fromnd.ni_vp, 0);
 #endif
 	fvp = fromnd.ni_vp;
+	
+	
+	/*
+	 * Check if file system is ufs and component 'to' contains '/' symbol.
+	 * If so, we save component 'to' and replace it with temporary
+	 * component 'tmp' so we can easily pass next namei() function. 
+	 */
+	char tmp[strlen(new)];
+        int slash_ufs = 0;
+        if (strcmp(fvp->v_mount->mnt_vfc->vfc_name, "ufs") == 0 && strchr(new, '/') != NULL) {
+                slash_ufs = 1;
+                strcpy(tmp, new);
+                strcpy(new, "tmp");
+        }
+	
 	NDINIT_ATRIGHTS(&tond, RENAME, LOCKPARENT | LOCKLEAF | NOCACHE |
 	    SAVESTART | AUDITVNODE2, pathseg, new, newfd,
 	    cap_rights_init(&rights, CAP_LINKAT), td);
@@ -3739,8 +3754,13 @@ again:
 	 * If the source is the same as the destination (that is, if they
 	 * are links to the same vnode), then there is nothing to do.
 	 */
-	if (fvp == tvp)
+	
+	/*
+	 * Check case if component 'from' is equal to 'tmp'
+	 */
+	if (fvp == tvp && !(slash_ufs && strcmp(new, "tmp") == 0)) {
 		error = -1;
+	}
 #ifdef MAC
 	else
 		error = mac_vnode_check_rename_to(td->td_ucred, tdvp,
@@ -3748,6 +3768,15 @@ again:
 #endif
 out:
 	if (error == 0) {
+		
+		/*
+		 * Return component 'to' to it's initial name with slashes that we saved. 
+		 */
+		if (slash_ufs) {
+                	tond.ni_cnd.cn_namelen = strlen(tmp);
+                	strcpy(tond.ni_cnd.cn_pnbuf, tmp);
+        	}
+		
 		error = VOP_RENAME(fromnd.ni_dvp, fromnd.ni_vp, &fromnd.ni_cnd,
 		    tond.ni_dvp, tond.ni_vp, &tond.ni_cnd);
 		NDFREE(&fromnd, NDF_ONLY_PNBUF);
