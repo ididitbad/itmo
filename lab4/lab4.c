@@ -30,6 +30,65 @@ double get_double_rand_r(double min, double max, unsigned int *seedp) {
 	return ((double)rand / (double)RAND_MAX * (max - min) + min);
 } 
 
+// Merges two subarrays of arr[].
+// First subarray is arr[l..m]
+// Second subarray is arr[m+1..r]
+void merge(double* arr, int l, int m, int r)
+{
+	int i, j, k;
+	int n1 = m - l + 1;
+	int n2 = r - m;
+ 
+	/* create temp arrays */
+	double *L = malloc(n1 * sizeof(double));
+	double *R = malloc(n2 * sizeof(double));
+ 
+	/* Copy data to temp arrays L[] and R[] */
+	for (i = 0; i < n1; i++)
+		L[i] = arr[l + i];
+	
+	for (j = 0; j < n2; j++)
+		R[j] = arr[m + 1 + j];
+ 
+	/* Merge the temp arrays back into arr[l..r]*/
+	i = 0; // Initial index of first subarray
+	j = 0; // Initial index of second subarray
+	k = l; // Initial index of merged subarray
+	while (i < n1 && j < n2)
+	{
+		if (L[i] <= R[j])
+		{
+			arr[k] = L[i];
+			i++;
+		}
+		else
+		{
+			arr[k] = R[j];
+			j++;
+		}
+		k++;
+	}
+ 
+	/* Copy the remaining elements of L[], if there are any */
+	while (i < n1)
+	{
+		arr[k] = L[i];
+		i++;
+		k++;
+	}
+ 
+	/* Copy the remaining elements of R[], if there are any */
+	while (j < n2)
+	{
+		arr[k] = R[j];
+		j++;
+		k++;
+	}
+	
+	free(L);
+	free(R);
+}
+
 void heapify(double *arr, int n, int i)
 {
 	int largest = i;  
@@ -175,7 +234,7 @@ int main(int argc, char* argv[]) {
 						printf("M1:\n"); 
 						print_array(M1, N);
 						printf("M2:\n"); 
-						print_array(M2, N/2);
+						print_array(M2, N / 2);
 					}
 
 					// 3. Merge ---> 3
@@ -186,16 +245,18 @@ int main(int argc, char* argv[]) {
 					if (verbose) {
 						printf("3.Merge\n"); 
 						printf("M2:\n"); 
-						print_array(M2, N/2);
+						print_array(M2, N / 2);
 					}
 					
 					// 4. Sort ---> 3
-					heapSort(M2, N / 2);
+					heapSort(M2, N / 4);
+					heapSort(M2 + N / 4, N / 4);
+					merge(M2, 0, N / 4 - 1, N / 2 - 1);
 
 					if (verbose) {
 						printf("4.Sort\n"); 
 						printf("M2:\n"); 
-						print_array(M2, N/2);
+						print_array(M2, N / 2);
 					}
 					
 					// 5. Reduce
