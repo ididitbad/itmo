@@ -132,16 +132,20 @@ void heapSort(double *arr, int n)
 
 int main(int argc, char* argv[]) {
 
+	unsigned int count = 10;
 	unsigned int seed = 42;
-	unsigned int i = 0, j = 0, verbose = 0;
+	unsigned int i = 0, j = 0, k = 0, verbose = 0;
 	int progress = 0, done = 0;
 	double X;
 	#ifdef _OPENMP
 		double T1, T2;
+		double time_ms, minimal_time_ms = DBL_MAX;
+		double* times = (double*)malloc(count * sizeof(double));
 	#else
 		struct timeval T1, T2;
+		long time_ms, minimal_time_ms = LONG_MAX;
+		long* times = (long*)malloc(count * sizeof(long));
 	#endif
-	long time_ms, minimal_time_ms = LONG_MAX;
 	int N = 0;
 
 	if (argc > 1)
@@ -155,7 +159,7 @@ int main(int argc, char* argv[]) {
 
 	double *M1 = malloc(sizeof(double) * N);
 	double *M2 = malloc(sizeof(double) * N / 2);
-
+	
 	srand(seed);  
 
 	omp_set_num_threads(omp_get_num_procs());
@@ -181,10 +185,10 @@ int main(int argc, char* argv[]) {
 			#pragma omp parallel num_threads(omp_get_num_procs() - 1) shared(progress,done)
 			{
 				#pragma omp single
-				for (i = 0; i < 10; i++) {
+				for (i = 0; i < count; i++) {
 					
 					#pragma omp critical
-					progress = i * 10;
+					progress = 100 * i / count;
 					
 					//printf("procs=%d, count=%d, num=%d\n", 
 					//	omp_get_num_procs(), omp_get_num_threads(), omp_get_thread_num());
@@ -216,7 +220,7 @@ int main(int argc, char* argv[]) {
 						printf("M1:\n"); 
 						print_array(M1, N);
 						printf("M2:\n"); 
-						print_array(M2, N/2);
+						print_array(M2, N / 2);
 					}
 
 					// 2. Map ---> 3
@@ -247,11 +251,21 @@ int main(int argc, char* argv[]) {
 						printf("M2:\n"); 
 						print_array(M2, N / 2);
 					}
-					
+						
 					// 4. Sort ---> 3
-					heapSort(M2, N / 4);
-					heapSort(M2 + N / 4, N / 4);
-					merge(M2, 0, N / 4 - 1, N / 2 - 1);
+					#ifdef _OPENMP
+						unsigned int proc_num = omp_get_num_procs();
+						#pragma omp parallel num_threads(proc_num - 1) shared(M2,N,proc_num)
+						{
+							unsigned int thread_num = omp_get_thread_num();
+							heapSort(M2 + thread_num * N / 2 / (proc_num - 1), N / 2 / (proc_num - 1));
+						}
+						for (k = 0; k < proc_num - 2; k++) {
+							merge(M2, k * N / 2 / (proc_num - 1), (k + 1) * N / 2 / (proc_num - 1) - 1, (k + 2) * N / 2 / (proc_num - 1) - 1);
+						}					
+					#else
+						heapSort(M2, N / 2);
+					#endif
 
 					if (verbose) {
 						printf("4.Sort\n"); 
@@ -281,6 +295,8 @@ int main(int argc, char* argv[]) {
 
 					if (time_ms < minimal_time_ms)	  
 						minimal_time_ms = time_ms;
+					
+					times[i] = time_ms;
 				
 				}
 			}	
@@ -289,9 +305,13 @@ int main(int argc, char* argv[]) {
 	}
 
 	omp_set_nested(0);
-	
-	printf("X=%f, N=%d. Best time (ms): %ld\n", X, N, minimal_time_ms);
 
+	printf("X=%f, N=%d. Best time (ms): %f\nTimes: ", X, N, (double)minimal_time_ms);
+	for (i = 0; i < count; i++)
+		printf("%f ", (double)times[i]);
+	printf("\n");
+	
+	free(times);
 	free(M1);
 	free(M2);
 	return 0;
