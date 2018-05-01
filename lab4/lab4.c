@@ -33,8 +33,7 @@ double get_double_rand_r(double min, double max, unsigned int *seedp) {
 // Merges two subarrays of arr[].
 // First subarray is arr[l..m]
 // Second subarray is arr[m+1..r]
-void merge(double* arr, int l, int m, int r)
-{
+void merge(double* arr, int l, int m, int r) {
 	int i, j, k;
 	int n1 = m - l + 1;
 	int n2 = r - m;
@@ -54,15 +53,12 @@ void merge(double* arr, int l, int m, int r)
 	i = 0; // Initial index of first subarray
 	j = 0; // Initial index of second subarray
 	k = l; // Initial index of merged subarray
-	while (i < n1 && j < n2)
-	{
-		if (L[i] <= R[j])
-		{
+	while (i < n1 && j < n2) {
+		if (L[i] <= R[j]) {
 			arr[k] = L[i];
 			i++;
 		}
-		else
-		{
+		else {
 			arr[k] = R[j];
 			j++;
 		}
@@ -70,16 +66,14 @@ void merge(double* arr, int l, int m, int r)
 	}
  
 	/* Copy the remaining elements of L[], if there are any */
-	while (i < n1)
-	{
+	while (i < n1) {
 		arr[k] = L[i];
 		i++;
 		k++;
 	}
  
 	/* Copy the remaining elements of R[], if there are any */
-	while (j < n2)
-	{
+	while (j < n2) {
 		arr[k] = R[j];
 		j++;
 		k++;
@@ -89,8 +83,7 @@ void merge(double* arr, int l, int m, int r)
 	free(R);
 }
 
-void heapify(double *arr, int n, int i)
-{
+void heapify(double *arr, int n, int i) {
 	int largest = i;  
 	int l = 2 * i + 1;  
 	int r = 2 * i + 2; 
@@ -101,8 +94,7 @@ void heapify(double *arr, int n, int i)
 	if (r < n && arr[r] > arr[largest])
 		  largest = r;
  
-	if (largest != i)
-	{
+	if (largest != i) {
 		double tmp;
 	 	tmp = arr[largest];
 		arr[largest] = arr[i];
@@ -112,15 +104,13 @@ void heapify(double *arr, int n, int i)
 	}
 }
  
-void heapSort(double *arr, int n)
-{
+void heapSort(double *arr, int n) {
 	int i;
 	
 	for (i = n / 2 - 1; i >= 0; i--)
 		heapify(arr, n, i);
  
-	for (i = n - 1; i >= 0; i--)
-	{
+	for (i = n - 1; i >= 0; i--) {
 		double tmp;
 		tmp = arr[0];
 		arr[0] = arr[i];
@@ -175,8 +165,8 @@ int main(int argc, char* argv[]) {
 				//printf("procs=%d, count=%d, num=%d\n", 
 				//	omp_get_num_procs(), omp_get_num_threads(), omp_get_thread_num());
 				while (!done) {
-					printf("progress %d%%\r", progress);
-					fflush(stdout);
+					fprintf(stderr, "progress %3d%%\r", progress);
+					fflush(stderr);
 					sleep(1);
 				}
 			}
