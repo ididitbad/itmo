@@ -15,8 +15,8 @@
 	#define omp_get_num_procs() 1
 	#define omp_get_num_threads() 1
 	#define omp_get_thread_num() 1
-	#define omp_set_num_threads(x) {while(0);} 
-	#define omp_set_nested(x) {while(0);} 
+	#define omp_set_num_threads(x) do {} while(0) 
+	#define omp_set_nested(x) do {} while(0)
 #endif
 
 void print_array(double *arr, int n) {
@@ -151,144 +151,128 @@ int main(int argc, char* argv[]) {
 	double *M2 = malloc(sizeof(double) * N / 2);
 	
 	srand(seed);  
-
-	//omp_set_num_threads(omp_get_num_procs());
 	
 	omp_set_nested(1);
 
 	#pragma omp parallel num_threads(2) shared(progress,done)
 	{
 		if (omp_get_thread_num() == 0) {
-			//#pragma omp parallel num_threads(1) shared(progress, done)
-			//{
-				//printf("procs=%d, count=%d, num=%d\n", 
-				//	omp_get_num_procs(), omp_get_num_threads(), omp_get_thread_num());
-				while (!done) {
-					fprintf(stderr, "progress %3d%%\r", progress);
-					fflush(stderr);
-					sleep(1);
-				}
-			//}
+			while (!done) {
+				fprintf(stderr, "progress %3d%%\r", progress);
+				fflush(stderr);
+				sleep(1);
+			}
 		}
 		else {
-			//#pragma omp parallel num_threads(omp_get_num_procs() - 1) shared(progress,done)
-			//{
-				//#pragma omp single
-				for (i = 0; i < count; i++) {
+			for (i = 0; i < count; i++) {
 					
-					#pragma omp critical
-					progress = 100 * i / count;
+				#pragma omp critical
+				progress = 100 * i / count;
 					
-					//printf("procs=%d, count=%d, num=%d\n", 
-					//	omp_get_num_procs(), omp_get_num_threads(), omp_get_thread_num());
+				#ifdef _OPENMP
+					T1 = omp_get_wtime();
+				#else
+					gettimeofday(&T1, NULL);  
+				#endif
 					
-					#ifdef _OPENMP
-						T1 = omp_get_wtime();
-					#else
-						gettimeofday(&T1, NULL);  
-					#endif
-					
-					// 1. Generate ---> 3
-					//#pragma omp parallel for default(none) private(j) shared(M1,N,seed)
-					for (j = 0; j < N; j++) {
-						//srand(j);  
-						//M1[j] = get_double_rand_r(1, A, &j);
-						//srand(seed);  
-						M1[j] = get_double_rand_r(1, A, &seed);
-					} 
-					//#pragma omp parallel for default(none) private(j) shared(M2,N,seed)
-					for (j = 0; j < N / 2; j++) {
-						//srand(j);  
-						//M2[j] = get_double_rand_r(A, 10 * A, &j); 
-						//srand(seed);  
-						M2[j] = get_double_rand_r(A, 10 * A, &seed); 
-					}
-					
-					if (verbose) {
-						printf("1.Generate\n"); 
-						printf("M1:\n"); 
-						print_array(M1, N);
-						printf("M2:\n"); 
-						print_array(M2, N / 2);
-					}
-
-					// 2. Map ---> 3
-					#pragma omp parallel for default(none) private(j) shared(M1,N)
-					for (j = 0; j < N; j++)
-						M1[j] = tanh(M1[j]) - 1;
-					#pragma omp parallel for default(none) private(j) shared(M2,N)
-					for (j = 0; j < N / 2; j++) { 
-						//M2[j] += (j == 0) ? 0 : M2[j - 1];
-						M2[j] = fabs(tan(M2[j]));
-					}
-
-					if (verbose) {
-						printf("2.Map\n"); 
-						printf("M1:\n"); 
-						print_array(M1, N);
-						printf("M2:\n"); 
-						print_array(M2, N / 2);
-					}
-
-					// 3. Merge ---> 3
-					#pragma omp parallel for default(none) private(j) shared(M1,M2,N)
-					for (j = 0; j < N / 2; j++) 
-						M2[j] *= M1[j];
-						
-					if (verbose) {
-						printf("3.Merge\n"); 
-						printf("M2:\n"); 
-						print_array(M2, N / 2);
-					}
-						
-					// 4. Sort ---> 3
-					#ifdef _OPENMP
-						unsigned int proc_num = omp_get_num_procs();
-						#pragma omp parallel num_threads(proc_num) shared(M2,N,proc_num)
-						{
-							unsigned int thread_num = omp_get_thread_num();
-							heapSort(M2 + thread_num * N / 2 / proc_num, N / 2 / proc_num);
-						}
-						for (k = 0; k < proc_num - 1; k++) {
-							merge(M2, k * N / 2 / proc_num, (k + 1) * N / 2 / proc_num - 1, (k + 2) * N / 2 / proc_num - 1);
-						}					
-					#else
-						heapSort(M2, N / 2);
-					#endif
-
-					if (verbose) {
-						printf("4.Sort\n"); 
-						printf("M2:\n"); 
-						print_array(M2, N / 2);
-					}
-					
-					// 5. Reduce
-					double min_sin = DBL_MAX;
-					X = 0;
-					#pragma omp parallel for default(none) private(j) shared(M2,N) reduction(min:min_sin)
-					for (j = 0; j < N / 2; j++)
-						if (M2[j] != 0 && M2[j] < min_sin)
-							min_sin = M2[j];
-					#pragma omp parallel for default(none) private(j) shared(M2,N,min_sin) reduction(+:X)
-					for (j = 0; j < N / 2; j++)
-						if (((int)(M2[j] / min_sin)) % 2 == 0)
-							X += sin(M2[j]);
-					
-					#ifdef _OPENMP
-						T2 = omp_get_wtime();
-						time_ms = 1000 * (T2 - T1);
-					#else
-						gettimeofday(&T2, NULL);  
-						time_ms = 1000 * (T2.tv_sec - T1.tv_sec) + (T2.tv_usec - T1.tv_usec) / 1000;
-					#endif
-
-					if (time_ms < minimal_time_ms)	  
-						minimal_time_ms = time_ms;
-					
-					times[i] = time_ms;
-				
+				// 1. Generate ---> 3
+				//#pragma omp parallel for default(none) private(j) shared(M1,N,seed)
+				for (j = 0; j < N; j++) {
+					//srand(j);  
+					//M1[j] = get_double_rand_r(1, A, &j);
+					M1[j] = get_double_rand_r(1, A, &seed);
+				} 
+				//#pragma omp parallel for default(none) private(j) shared(M2,N,seed)
+				for (j = 0; j < N / 2; j++) {
+					//srand(j);  
+					//M2[j] = get_double_rand_r(A, 10 * A, &j); 
+					M2[j] = get_double_rand_r(A, 10 * A, &seed); 
 				}
-			//}	
+					
+				if (verbose) {
+					printf("1.Generate\n"); 
+					printf("M1:\n"); 
+					print_array(M1, N);
+					printf("M2:\n"); 
+					print_array(M2, N / 2);
+				}
+
+				// 2. Map ---> 3
+				#pragma omp parallel for default(none) private(j) shared(M1,N)
+				for (j = 0; j < N; j++)
+					M1[j] = tanh(M1[j]) - 1;
+				#pragma omp parallel for default(none) private(j) shared(M2,N)
+				for (j = 0; j < N / 2; j++) { 
+					//M2[j] += (j == 0) ? 0 : M2[j - 1];
+					M2[j] = fabs(tan(M2[j]));
+				}
+
+				if (verbose) {
+					printf("2.Map\n"); 
+					printf("M1:\n"); 
+					print_array(M1, N);
+					printf("M2:\n"); 
+					print_array(M2, N / 2);
+				}
+
+				// 3. Merge ---> 3
+				#pragma omp parallel for default(none) private(j) shared(M1,M2,N)
+				for (j = 0; j < N / 2; j++) 
+					M2[j] *= M1[j];
+						
+				if (verbose) {
+					printf("3.Merge\n"); 
+					printf("M2:\n"); 
+					print_array(M2, N / 2);
+				}
+					
+				// 4. Sort ---> 3
+				#ifdef _OPENMP
+					unsigned int proc_num = omp_get_num_procs();
+					#pragma omp parallel num_threads(proc_num) shared(M2,N,proc_num)
+					{
+						unsigned int thread_num = omp_get_thread_num();
+						heapSort(M2 + thread_num * N / 2 / proc_num, N / 2 / proc_num);
+					}
+					for (k = 0; k < proc_num - 1; k++) {
+						merge(M2, k * N / 2 / proc_num, (k + 1) * N / 2 / proc_num - 1, (k + 2) * N / 2 / proc_num - 1);
+					}					
+				#else
+					heapSort(M2, N / 2);
+				#endif
+
+				if (verbose) {
+					printf("4.Sort\n"); 
+					printf("M2:\n"); 
+					print_array(M2, N / 2);
+				}
+				
+				// 5. Reduce
+				double min_sin = DBL_MAX;
+				X = 0;
+				#pragma omp parallel for default(none) private(j) shared(M2,N) reduction(min:min_sin)
+				for (j = 0; j < N / 2; j++)
+					if (M2[j] != 0 && M2[j] < min_sin)
+						min_sin = M2[j];
+				#pragma omp parallel for default(none) private(j) shared(M2,N,min_sin) reduction(+:X)
+				for (j = 0; j < N / 2; j++)
+					if (((int)(M2[j] / min_sin)) % 2 == 0)
+						X += sin(M2[j]);
+				
+				#ifdef _OPENMP
+					T2 = omp_get_wtime();
+					time_ms = 1000 * (T2 - T1);
+				#else
+					gettimeofday(&T2, NULL);  
+					time_ms = 1000 * (T2.tv_sec - T1.tv_sec) + (T2.tv_usec - T1.tv_usec) / 1000;
+				#endif
+
+				if (time_ms < minimal_time_ms)	  
+					minimal_time_ms = time_ms;
+				
+				times[i] = time_ms;
+			
+			}
 			#pragma omp critical
 			done = 1;
 		}
