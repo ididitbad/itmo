@@ -152,16 +152,15 @@ int main(int argc, char* argv[]) {
 	
 	srand(seed);  
 
-	omp_set_num_threads(omp_get_num_procs());
+	//omp_set_num_threads(omp_get_num_procs());
 	
 	omp_set_nested(1);
 
-	#pragma omp parallel num_threads(2)
+	#pragma omp parallel num_threads(2) shared(progress,done)
 	{
-	
 		if (omp_get_thread_num() == 0) {
-			#pragma omp parallel num_threads(1) shared(progress,done)
-			{
+			//#pragma omp parallel num_threads(1) shared(progress, done)
+			//{
 				//printf("procs=%d, count=%d, num=%d\n", 
 				//	omp_get_num_procs(), omp_get_num_threads(), omp_get_thread_num());
 				while (!done) {
@@ -169,12 +168,12 @@ int main(int argc, char* argv[]) {
 					fflush(stderr);
 					sleep(1);
 				}
-			}
+			//}
 		}
 		else {
-			#pragma omp parallel num_threads(omp_get_num_procs() - 1) shared(progress,done)
-			{
-				#pragma omp single
+			//#pragma omp parallel num_threads(omp_get_num_procs() - 1) shared(progress,done)
+			//{
+				//#pragma omp single
 				for (i = 0; i < count; i++) {
 					
 					#pragma omp critical
@@ -245,13 +244,13 @@ int main(int argc, char* argv[]) {
 					// 4. Sort ---> 3
 					#ifdef _OPENMP
 						unsigned int proc_num = omp_get_num_procs();
-						#pragma omp parallel num_threads(proc_num - 1) shared(M2,N,proc_num)
+						#pragma omp parallel num_threads(proc_num) shared(M2,N,proc_num)
 						{
 							unsigned int thread_num = omp_get_thread_num();
-							heapSort(M2 + thread_num * N / 2 / (proc_num - 1), N / 2 / (proc_num - 1));
+							heapSort(M2 + thread_num * N / 2 / proc_num, N / 2 / proc_num);
 						}
-						for (k = 0; k < proc_num - 2; k++) {
-							merge(M2, k * N / 2 / (proc_num - 1), (k + 1) * N / 2 / (proc_num - 1) - 1, (k + 2) * N / 2 / (proc_num - 1) - 1);
+						for (k = 0; k < proc_num - 1; k++) {
+							merge(M2, k * N / 2 / proc_num, (k + 1) * N / 2 / proc_num - 1, (k + 2) * N / 2 / proc_num - 1);
 						}					
 					#else
 						heapSort(M2, N / 2);
@@ -289,7 +288,8 @@ int main(int argc, char* argv[]) {
 					times[i] = time_ms;
 				
 				}
-			}	
+			//}	
+			#pragma omp critical
 			done = 1;
 		}
 	}
