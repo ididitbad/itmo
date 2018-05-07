@@ -137,7 +137,7 @@ void* cpu_stat(void *arg) {
 
 		int proc_count = 0;
 		fprintf(fw, "time_s: %3ld", (long)(time(NULL) - start));
-		while ((read = getline(&line, &len, fr)) != -1) {
+		while ((read = getline(&line, &len, fr)) != -1 && proc_count < args->proc_num) {
 			if (line[0] == 'c' && line[1] == 'p' && line[2] == 'u' && line[3] != ' ') {
 				int old_space = 0, count = 0;
 				for (int i = 0; i < read; i++) {
@@ -189,19 +189,23 @@ void* progress_bar(void* arg) {
 
 struct cc_args {
 	pthread_barrier_t *barrier;
+	pthread_mutex_t *mutex_X; 
+	pthread_mutex_t *mutex_sin;
 	unsigned int thread_num;
 	unsigned int proc_num;
 	long N;
 	double* M1;
 	double* M2;
-	double min_sin;
-	double X;
+	double* min_sin;
+	double* X;
 };
 
 void* cycle(void *arg) {
 
 	struct cc_args *args = (struct cc_args*) arg;
 	pthread_barrier_t *barrier = args->barrier;
+	pthread_mutex_t *mutex_X = args->mutex_X; 
+	pthread_mutex_t *mutex_sin = args->mutex_sin;
 	unsigned int thread_num = args->thread_num;
 	unsigned int proc_num = args->proc_num;
 	long N = args->N;
@@ -221,49 +225,72 @@ void* cycle(void *arg) {
 	
 	// 2. Map ---> 3 <------------------------------------------------
 	
-	for (long j = N / proc_num * (thread_num - 1); j < N / proc_num * thread_num; j++) 
+	//printf("i am thread %d doing M1[%ld..%ld] and M2[%ld..%ld]\n",
+	//	thread_num, N * (thread_num - 1) / proc_num, N * thread_num / proc_num - 1,
+	//	N * (thread_num - 1) / 2 / proc_num, N * thread_num / 2 / proc_num - 1);
+		
+	for (long j = (thread_num - 1) * N / proc_num; j < thread_num * N / proc_num; j++) 
 		M1[j] = tanh(M1[j]) - 1;
-	for (long j = N / 2 / proc_num * (thread_num - 1); j < N / 2 / proc_num * thread_num; j++) {
+	for (long j = (thread_num - 1) * N / 2 / proc_num; j < thread_num * N / 2 / proc_num; j++) {
 		//M2[j] += (j == 0) ? 0 : M2[j - 1];
 		M2[j] = fabs(tan(M2[j]));
 	}
+
+	//printf("2.Map\n"); 
+	//printf("M1:\n"); 
+	//print_array(M1, N);
+	//printf("M2:\n"); 
+	//print_array(M2, N / 2);
 
 	pthread_barrier_wait(&barrier[0]);
 
 	// 3. Merge ---> 3 <---------------------------------------------
 
-	for (long j = N / 2 / proc_num * (thread_num - 1); j < N / 2 / proc_num * thread_num; j++) 
+	for (long j = (thread_num - 1) * N / 2 / proc_num; j < thread_num * N / 2 / proc_num; j++) 
 		M2[j] *= M1[j];
 			
 	pthread_barrier_wait(&barrier[1]);
+
+	//printf("3.Merge\n"); 
+	//printf("M2:\n"); 
+	//print_array(M2, N / 2);
 
 	// 4. Sort ---> 3 <---------------------------------------------
 
 	heapSort(M2 + (thread_num - 1) * N / 2 / proc_num, N / 2 / proc_num);
 
-
 	pthread_barrier_wait(&barrier[2]);
+	// Merging in main thread....
+	pthread_barrier_wait(&barrier[3]);
+
+	//printf("4.Sort\n"); 
+	//printf("M2:\n"); 
+	//print_array(M2, N / 2);
 
 	// 5. Reduce --------------------------------------------------------
 	
 	double min_sin = DBL_MAX;
-	for (long j = N / 2 / proc_num * (thread_num - 1); j < N / 2 / proc_num * thread_num; j++) 
+	for (long j = (thread_num - 1) * N / 2 / proc_num; j < thread_num * N / 2 / proc_num; j++) 
 		if (M2[j] != 0 && M2[j] < min_sin)
 			min_sin = M2[j];
 	
-	if (min_sin < args->min_sin)
-		args->min_sin = min_sin;
+	//pthread_mutex_lock(mutex_sin);
+	if (min_sin < *(args->min_sin))
+		*(args->min_sin) = min_sin;
+	//pthread_mutex_unlock(mutex_sin);
 
-	pthread_barrier_wait(&barrier[3]);
+	pthread_barrier_wait(&barrier[4]);
 
 	double X = 0;
-	for (long j = N / 2 / proc_num * (thread_num - 1); j < N / 2 / proc_num * thread_num; j++)
+	for (long j = (thread_num - 1) * N / 2 / proc_num; j < thread_num * N / 2 / proc_num; j++)
 		if (((int)(M2[j] / min_sin)) % 2 == 0)
 			X += sin(M2[j]);
 	
-	args->X += X;
+	//pthread_mutex_lock(mutex_X);
+	*(args->X) += X;
+	//pthread_mutex_unlock(mutex_X);
 
-	pthread_barrier_wait(&barrier[4]);
+	pthread_barrier_wait(&barrier[5]);
 
 	pthread_exit(0);
 }
@@ -276,18 +303,18 @@ int main(int argc, char* argv[]) {
 
 	pthread_t helper[2]; 
 	pthread_t thread[proc_num];
-	unsigned int barrier_num = 6;
-	pthread_barrier_t *barrier = malloc(barrier_num * sizeof(pthread_barrier_t));
 	struct cc_args cc_args[proc_num];
 
-	struct cs_args cs_args = {proc_num, 1000};
-	
-	pthread_create(&helper[0], NULL, progress_bar, NULL);
-	pthread_create(&helper[1], NULL, cpu_stat    , &cs_args);
-		
+	unsigned int barrier_num = 6;
+	pthread_barrier_t *barrier = malloc(barrier_num * sizeof(pthread_barrier_t));
+
+	pthread_mutex_t mutex_X = PTHREAD_MUTEX_INITIALIZER; 
+	pthread_mutex_t mutex_sin = PTHREAD_MUTEX_INITIALIZER; 
+
 	const int count = 10;
 	const int stages = 5;
 	unsigned int seed = 42;
+	unsigned int verbose = 0;
 	double X = 0, min_sin = DBL_MAX;
 		
 	struct timeval T1, T2;
@@ -304,14 +331,22 @@ int main(int argc, char* argv[]) {
 		printf("usage: %s N\nwhere N > 0\n", argv[0]);
 		return 1;
 	}
+	if (argc > 2 && argv[2][0] == '-' && argv[2][1] == 'v')
+		verbose = 1;
 
 	double *M1 = malloc(sizeof(double) * N);
 	double *M2 = malloc(sizeof(double) * N / 2);
 	
 	srand(seed);  
 
-	for (int i = 0; i < 1; i++) {
+	struct cs_args cs_args = {proc_num, 1000};
+	pthread_create(&helper[0], NULL, progress_bar, NULL);
+	pthread_create(&helper[1], NULL, cpu_stat    , &cs_args);
+
+	for (int i = 0; i < count; i++) {
 		
+		X = 0;
+		min_sin = DBL_MAX;
 		// ---------------------------STAGE 1--------------------------------------
 			
 		gettimeofday(&T1, NULL);  
@@ -331,19 +366,29 @@ int main(int argc, char* argv[]) {
 	
 		times[0][i] = time_ms;
 			
+		if (verbose) {
+			printf("1.Generate\n"); 
+			printf("M1:\n"); 
+			print_array(M1, N);
+			printf("M2:\n"); 
+			print_array(M2, N / 2);
+		}
+
 		// ---------------------------THREADS CREATION-----------------------------
 
 		for (int i = 0; i < barrier_num; i++)
 			pthread_barrier_init(&barrier[i], NULL, proc_num + 1);
 		for (int i = 0; i < proc_num; i++) {
 			cc_args[i].barrier = barrier;
+			cc_args[i].mutex_X = &mutex_X;
+			cc_args[i].mutex_sin = &mutex_sin;
 			cc_args[i].thread_num = i + 1;
 			cc_args[i].proc_num = proc_num;
 			cc_args[i].N = N;
 			cc_args[i].M1 = M1;
 			cc_args[i].M2 = M2;
-			cc_args[i].min_sin = min_sin;
-			cc_args[i].X = X;
+			cc_args[i].min_sin = &min_sin;
+			cc_args[i].X = &X;
 			pthread_create(&thread[i], NULL, cycle, &cc_args[i]);
 		}
 	
@@ -374,7 +419,7 @@ int main(int argc, char* argv[]) {
 			min_times[2] = time_ms;
 	
 		times[2][i] = time_ms;
-
+				
 		// ---------------------------STAGE 4--------------------------------------
 
 		gettimeofday(&T1, NULL);  
@@ -421,10 +466,12 @@ int main(int argc, char* argv[]) {
 	}
 	done = 1;
 
-	printf("X=%f, N=%ld\n", X, N);
+	long sum_time = 0;
+	for (int i = 0; i < stages; i++) sum_time += min_times[i];
+	printf("X=%f, N=%ld. All time=%ld\n", X, N, sum_time);
 	for (int i = 0; i < stages; i++) {
 		printf("Stage %d. Best time (ms): %ld\nTimes: ", i, min_times[i]);
-		for (int j = 0; j < count; j++)
+		for (int j = 0; j < count; j++) 
 			printf("%ld ", times[i][j]);
 		printf("\n");
 	}
