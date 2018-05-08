@@ -10,10 +10,6 @@
 
 #define A (7 * 6 * 9) //  Каширин Кирилл Сергеевич
 
-time_t start;
-char progress = 0;
-char done = 0;
-
 void print_array(double *arr, int n) {
 	for (int i = 0; i < n; i++)
 		printf("%f ", arr[i]);
@@ -107,6 +103,10 @@ void heapSort(double *arr, int n) {
 	}
 }
 
+time_t start;
+char progress = 0;
+char done = 0;
+
 struct cs_args {
 	unsigned int proc_num;
 	unsigned int ms;
@@ -189,108 +189,102 @@ void* progress_bar(void* arg) {
 
 struct cc_args {
 	pthread_barrier_t *barrier;
-	pthread_mutex_t *mutex_X; 
-	pthread_mutex_t *mutex_sin;
+	pthread_mutex_t *mutex_merge;
 	unsigned int thread_num;
 	unsigned int proc_num;
 	long N;
+	long chunk_size;
 	double* M1;
 	double* M2;
 	double* min_sin;
 	double* X;
 };
 
+int merged;
+long merge_start;
+
 void* cycle(void *arg) {
 
 	struct cc_args *args = (struct cc_args*) arg;
 	pthread_barrier_t *barrier = args->barrier;
-	pthread_mutex_t *mutex_X = args->mutex_X; 
-	pthread_mutex_t *mutex_sin = args->mutex_sin;
+	pthread_mutex_t *mutex_merge = args->mutex_merge;
 	unsigned int thread_num = args->thread_num;
 	unsigned int proc_num = args->proc_num;
 	long N = args->N;
+	long chunk_size = args->chunk_size;
 	double* M1 = args->M1;
 	double* M2 = args->M2;
-
-	/*
-	// 1. Generate ---> 3 <--------------------------------------------
 	
-	for (long j = N / proc_num * (thread_num - 1); j < N / proc_num * thread_num; j++) {
-		M1[j] = get_double_rand_r(1, A, &seed);
-	} 
-	for (long j = N / 2 / proc_num * (thread_num - 1); j < N / 2 / proc_num * thread_num; j++) {
-		M2[j] = get_double_rand_r(A, 10 * A, &seed); 
-	}
-	*/
+	while (!done) {
 	
-	// 2. Map ---> 3 <------------------------------------------------
+		// 1. Generate ---> 3 <--------------------------------------------
+		// Generated in main thread...
 	
-	//printf("i am thread %d doing M1[%ld..%ld] and M2[%ld..%ld]\n",
-	//	thread_num, N * (thread_num - 1) / proc_num, N * thread_num / proc_num - 1,
-	//	N * (thread_num - 1) / 2 / proc_num, N * thread_num / 2 / proc_num - 1);
+		pthread_barrier_wait(&barrier[0]);
 		
-	for (long j = (thread_num - 1) * N / proc_num; j < thread_num * N / proc_num; j++) 
-		M1[j] = tanh(M1[j]) - 1;
-	for (long j = (thread_num - 1) * N / 2 / proc_num; j < thread_num * N / 2 / proc_num; j++) {
-		//M2[j] += (j == 0) ? 0 : M2[j - 1];
-		M2[j] = fabs(tan(M2[j]));
-	}
-
-	//printf("2.Map\n"); 
-	//printf("M1:\n"); 
-	//print_array(M1, N);
-	//printf("M2:\n"); 
-	//print_array(M2, N / 2);
-
-	pthread_barrier_wait(&barrier[0]);
-
-	// 3. Merge ---> 3 <---------------------------------------------
-
-	for (long j = (thread_num - 1) * N / 2 / proc_num; j < thread_num * N / 2 / proc_num; j++) 
-		M2[j] *= M1[j];
+		// 2. Map ---> 3 <------------------------------------------------
+		
+		for (long j = (thread_num - 1) * N / proc_num; j < thread_num * N / proc_num; j++) 
+			M1[j] = tanh(M1[j]) - 1;
+		for (long j = (thread_num - 1) * N / 2 / proc_num; j < thread_num * N / 2 / proc_num; j++) {
+			//M2[j] += (j == 0) ? 0 : M2[j - 1];
+			M2[j] = fabs(tan(M2[j]));
+		}
+	
+		pthread_barrier_wait(&barrier[1]);
+	
+		// 3. Merge ---> 3 <---------------------------------------------
+	
+		while (!merged) {
 			
-	pthread_barrier_wait(&barrier[1]);
-
-	//printf("3.Merge\n"); 
-	//printf("M2:\n"); 
-	//print_array(M2, N / 2);
-
-	// 4. Sort ---> 3 <---------------------------------------------
-
-	heapSort(M2 + (thread_num - 1) * N / 2 / proc_num, N / 2 / proc_num);
-
-	pthread_barrier_wait(&barrier[2]);
-	// Merging in main thread....
-	pthread_barrier_wait(&barrier[3]);
-
-	//printf("4.Sort\n"); 
-	//printf("M2:\n"); 
-	//print_array(M2, N / 2);
-
-	// 5. Reduce --------------------------------------------------------
+			pthread_mutex_lock(mutex_merge);
+				long local_start = merge_start;
+				if (local_start >= N / 2) {
+					pthread_mutex_unlock(mutex_merge);
+					break;
+				}
+				merge_start += chunk_size;
+				if (merge_start >= N / 2) merged = 1;
+			pthread_mutex_unlock(mutex_merge);
+			
+			for (long j = local_start; j < local_start + chunk_size && j < N / 2; j++) 
+				M2[j] *= M1[j];
+		}	
+				
+		pthread_barrier_wait(&barrier[2]);
 	
-	double min_sin = DBL_MAX;
-	for (long j = (thread_num - 1) * N / 2 / proc_num; j < thread_num * N / 2 / proc_num; j++) 
-		if (M2[j] != 0 && M2[j] < min_sin)
-			min_sin = M2[j];
+		// 4. Sort ---> 3 <---------------------------------------------
 	
-	//pthread_mutex_lock(mutex_sin);
-	if (min_sin < *(args->min_sin))
-		*(args->min_sin) = min_sin;
-	//pthread_mutex_unlock(mutex_sin);
-
-	pthread_barrier_wait(&barrier[4]);
-
-	double X = 0;
-	for (long j = (thread_num - 1) * N / 2 / proc_num; j < thread_num * N / 2 / proc_num; j++)
-		if (((int)(M2[j] / min_sin)) % 2 == 0)
-			X += sin(M2[j]);
+		heapSort(M2 + (thread_num - 1) * N / 2 / proc_num, N / 2 / proc_num);
 	
-	//pthread_mutex_lock(mutex_X);
-	*(args->X) += X;
-	//pthread_mutex_unlock(mutex_X);
-
-	pthread_barrier_wait(&barrier[5]);
+		pthread_barrier_wait(&barrier[3]);
+		// Merging in main thread....
+		pthread_barrier_wait(&barrier[4]);
+	
+		// 5. Reduce --------------------------------------------------------
+	
+		double min_sin = DBL_MAX;
+		for (long j = (thread_num - 1) * N / 2 / proc_num; j < thread_num * N / 2 / proc_num; j++) 
+			if (M2[j] != 0 && M2[j] < min_sin)
+				min_sin = M2[j];
+		
+		if (min_sin < *(args->min_sin))
+			*(args->min_sin) = min_sin;
+	
+		pthread_barrier_wait(&barrier[5]);
+		
+		min_sin = *(args->min_sin);
+		double X = 0;
+		for (long j = (thread_num - 1) * N / 2 / proc_num; j < thread_num * N / 2 / proc_num; j++)
+			if (((int)(M2[j] / min_sin)) % 2 == 0)
+				X += sin(M2[j]);
+		
+		*(args->X) += X;
+	
+		pthread_barrier_wait(&barrier[6]);
+		pthread_barrier_wait(&barrier[7]);
+		
+	}
 
 	pthread_exit(0);
 }
@@ -305,11 +299,10 @@ int main(int argc, char* argv[]) {
 	pthread_t thread[proc_num];
 	struct cc_args cc_args[proc_num];
 
-	unsigned int barrier_num = 6;
+	unsigned int barrier_num = 8;
 	pthread_barrier_t *barrier = malloc(barrier_num * sizeof(pthread_barrier_t));
 
-	pthread_mutex_t mutex_X = PTHREAD_MUTEX_INITIALIZER; 
-	pthread_mutex_t mutex_sin = PTHREAD_MUTEX_INITIALIZER; 
+	pthread_mutex_t mutex_merge = PTHREAD_MUTEX_INITIALIZER; 
 
 	const int count = 10;
 	const int stages = 5;
@@ -317,7 +310,7 @@ int main(int argc, char* argv[]) {
 	unsigned int verbose = 0;
 	double X = 0, min_sin = DBL_MAX;
 		
-	struct timeval T1, T2;
+	struct timespec T1, T2;
 	long time_ms;
 	
 	long times[stages][count];
@@ -343,13 +336,37 @@ int main(int argc, char* argv[]) {
 	pthread_create(&helper[0], NULL, progress_bar, NULL);
 	pthread_create(&helper[1], NULL, cpu_stat    , &cs_args);
 
+	long chunk_size = N / 2 / proc_num;
+
+	for (int i = 0; i < barrier_num; i++)
+		pthread_barrier_init(&barrier[i], NULL, proc_num + 1);
+	for (int i = 0; i < proc_num; i++) {
+		cc_args[i].barrier = barrier;
+		cc_args[i].mutex_merge = &mutex_merge;
+		cc_args[i].thread_num = i + 1;
+		cc_args[i].proc_num = proc_num;
+		cc_args[i].N = N;
+		cc_args[i].chunk_size = chunk_size;
+		cc_args[i].M1 = M1;
+		cc_args[i].M2 = M2;
+		cc_args[i].min_sin = &min_sin;
+		cc_args[i].X = &X;
+	}
+		
+	for (int j = 0; j < proc_num; j++) {
+		pthread_create(&thread[j], NULL, cycle, &cc_args[j]);
+	}
+	
 	for (int i = 0; i < count; i++) {
 		
 		X = 0;
 		min_sin = DBL_MAX;
+		merged = 0;
+		merge_start = 0;
+
 		// ---------------------------STAGE 1--------------------------------------
 			
-		gettimeofday(&T1, NULL);  
+		clock_gettime(CLOCK_REALTIME, &T1);  
 
 		for (long j = 0; j < N; j++) {
 			M1[j] = get_double_rand_r(1, A, &seed);
@@ -358,8 +375,8 @@ int main(int argc, char* argv[]) {
 			M2[j] = get_double_rand_r(A, 10 * A, &seed); 
 		}
 
-		gettimeofday(&T2, NULL);  
-		time_ms = 1000 * (T2.tv_sec - T1.tv_sec) + (T2.tv_usec - T1.tv_usec) / 1000;
+		clock_gettime(CLOCK_REALTIME, &T2);  
+		time_ms = 1000 * (T2.tv_sec - T1.tv_sec) + (T2.tv_nsec - T1.tv_nsec) / 1000000;
 
 		if (time_ms < min_times[0])	  
 			min_times[0] = time_ms;
@@ -374,32 +391,16 @@ int main(int argc, char* argv[]) {
 			print_array(M2, N / 2);
 		}
 
-		// ---------------------------THREADS CREATION-----------------------------
-
-		for (int i = 0; i < barrier_num; i++)
-			pthread_barrier_init(&barrier[i], NULL, proc_num + 1);
-		for (int i = 0; i < proc_num; i++) {
-			cc_args[i].barrier = barrier;
-			cc_args[i].mutex_X = &mutex_X;
-			cc_args[i].mutex_sin = &mutex_sin;
-			cc_args[i].thread_num = i + 1;
-			cc_args[i].proc_num = proc_num;
-			cc_args[i].N = N;
-			cc_args[i].M1 = M1;
-			cc_args[i].M2 = M2;
-			cc_args[i].min_sin = &min_sin;
-			cc_args[i].X = &X;
-			pthread_create(&thread[i], NULL, cycle, &cc_args[i]);
-		}
-	
-		// ---------------------------STAGE 2--------------------------------------
-
-		gettimeofday(&T1, NULL);  
-
 		pthread_barrier_wait(&barrier[0]);
 
-		gettimeofday(&T2, NULL);  
-		time_ms = 1000 * (T2.tv_sec - T1.tv_sec) + (T2.tv_usec - T1.tv_usec) / 1000;
+		// ---------------------------STAGE 2--------------------------------------
+
+		clock_gettime(CLOCK_REALTIME, &T1);  
+
+		pthread_barrier_wait(&barrier[1]);
+
+		clock_gettime(CLOCK_REALTIME, &T2);  
+		time_ms = 1000 * (T2.tv_sec - T1.tv_sec) + (T2.tv_nsec - T1.tv_nsec) / 1000000;
 
 		if (time_ms < min_times[1])	  
 			min_times[1] = time_ms;
@@ -408,12 +409,12 @@ int main(int argc, char* argv[]) {
 
 		// ---------------------------STAGE 3--------------------------------------
 
-		gettimeofday(&T1, NULL);  
+		clock_gettime(CLOCK_REALTIME, &T1);  
 
-		pthread_barrier_wait(&barrier[1]);
+		pthread_barrier_wait(&barrier[2]);
 
-		gettimeofday(&T2, NULL);  
-		time_ms = 1000 * (T2.tv_sec - T1.tv_sec) + (T2.tv_usec - T1.tv_usec) / 1000;
+		clock_gettime(CLOCK_REALTIME, &T2);  
+		time_ms = 1000 * (T2.tv_sec - T1.tv_sec) + (T2.tv_nsec - T1.tv_nsec) / 1000000;
 
 		if (time_ms < min_times[2])	  
 			min_times[2] = time_ms;
@@ -422,18 +423,18 @@ int main(int argc, char* argv[]) {
 				
 		// ---------------------------STAGE 4--------------------------------------
 
-		gettimeofday(&T1, NULL);  
+		clock_gettime(CLOCK_REALTIME, &T1);  
 
-		pthread_barrier_wait(&barrier[2]);
+		pthread_barrier_wait(&barrier[3]);
 		
 		for (long k = 0; k < proc_num - 1; k++) {
 			merge(M2, k * N / 2 / proc_num, (k + 1) * N / 2 / proc_num - 1, (k + 2) * N / 2 / proc_num - 1);
 		}					
 
-		pthread_barrier_wait(&barrier[3]);
+		pthread_barrier_wait(&barrier[4]);
 
-		gettimeofday(&T2, NULL);  
-		time_ms = 1000 * (T2.tv_sec - T1.tv_sec) + (T2.tv_usec - T1.tv_usec) / 1000;
+		clock_gettime(CLOCK_REALTIME, &T2);  
+		time_ms = 1000 * (T2.tv_sec - T1.tv_sec) + (T2.tv_nsec - T1.tv_nsec) / 1000000;
 
 		if (time_ms < min_times[3])	  
 			min_times[3] = time_ms;
@@ -442,13 +443,13 @@ int main(int argc, char* argv[]) {
 	
 		// ---------------------------STAGE 5--------------------------------------
 
-		gettimeofday(&T1, NULL);  
+		clock_gettime(CLOCK_REALTIME, &T1);  
 
-		pthread_barrier_wait(&barrier[4]);
 		pthread_barrier_wait(&barrier[5]);
+		pthread_barrier_wait(&barrier[6]);
 
-		gettimeofday(&T2, NULL);  
-		time_ms = 1000 * (T2.tv_sec - T1.tv_sec) + (T2.tv_usec - T1.tv_usec) / 1000;
+		clock_gettime(CLOCK_REALTIME, &T2);  
+		time_ms = 1000 * (T2.tv_sec - T1.tv_sec) + (T2.tv_nsec - T1.tv_nsec) / 1000000;
 
 		if (time_ms < min_times[4])	  
 			min_times[4] = time_ms;
@@ -457,18 +458,21 @@ int main(int argc, char* argv[]) {
 		
 		// ---------------------------THREADS DESTRUCTION----------------------------
 
-		for (int i = 0; i < proc_num; i++) 
-			pthread_join(thread[i], NULL);
-		for (int i = 0; i < barrier_num; i++)
-			pthread_barrier_destroy(&barrier[i]);
-
-		progress = 100 * i / count;
+		progress = 100 * (i + 1) / count;
+		if (i == count - 1) done = 1;
+		pthread_barrier_wait(&barrier[7]);
 	}
-	done = 1;
+
+	for (int i = 0; i < proc_num; i++) 
+		pthread_join(thread[i], NULL);
+
+	for (int i = 0; i < barrier_num; i++)
+		pthread_barrier_destroy(&barrier[i]);
+	free(barrier);
 
 	long sum_time = 0;
 	for (int i = 0; i < stages; i++) sum_time += min_times[i];
-	printf("X=%f, N=%ld. All time=%ld\n", X, N, sum_time);
+	printf("X=%f, N=%ld. Best time (ms): %ld\n", X, N, sum_time);
 	for (int i = 0; i < stages; i++) {
 		printf("Stage %d. Best time (ms): %ld\nTimes: ", i, min_times[i]);
 		for (int j = 0; j < count; j++) 
