@@ -1,189 +1,285 @@
-#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <math.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <CL/opencl.h>
- 
-// Use a static data size for simplicity
+#include <limits.h>
+#include <float.h>
+#include <sys/time.h>
 
-#define DATA_SIZE (1024)
+#include <CL/opencl.h>
+
+#define A (7 * 6 * 9) //  Каширин Кирилл Сергеевич
+
+void print_array(double *arr, int n) {
+	for (int i = 0; i < n; i++)
+		printf("%f ", arr[i]);
+	printf("\n");
+}
+
+double get_double_rand_r(double min, double max, unsigned int *seedp) {
+	int rand = rand_r(seedp);
+	return ((double)rand / (double)RAND_MAX * (max - min) + min);
+} 
+
+void heapify(double *arr, int n, int i) {
+	double tmp;
+	int largest = i;
+	int l = 2 * i + 1;
+	int r = 2 * i + 2;
  
-////////////////////////////////////////////////////////////////////////////////
+	if (l < n && arr[l] > arr[largest])
+		  largest = l;
  
-// Simple compute kernel which computes the square of an input array 
-//
-const char *source = "\n" \
-"__kernel void square(                                                  \n" \
-"   __global float* input,                                              \n" \
-"   __global float* output,                                             \n" \
-"   const unsigned int count)                                           \n" \
-"{                                                                      \n" \
-"   int i = get_global_id(0);                                           \n" \
-"   if (i < count)                                                      \n" \
-"       output[i] = input[i] * input[i];                                \n" \
-"}                                                                      \n" \
+	if (r < n && arr[r] > arr[largest])
+		  largest = r;
+ 
+	if (largest != i) {
+	 	tmp = arr[largest];
+		arr[largest] = arr[i];
+		arr[i] = tmp;
+ 
+		heapify(arr, n, largest);
+	}
+}
+ 
+void heapSort(double *arr, int n) {
+	int i;
+	double tmp;
+
+	for (i = n / 2 - 1; i >= 0; i--)
+		heapify(arr, n, i);
+ 
+	for (i = n - 1; i >= 0; i--) {
+		tmp = arr[0];
+		arr[0] = arr[i];
+		arr[i] = tmp;
+ 
+		heapify(arr, i, 0);
+	}
+}
+
+void panic(char* msg) {
+	printf("%s\n", msg);
+	exit(1);
+}
+
+const char *source2 = "\n" \
+"__kernel void ul(                                                  \n" \
+"   __global double* M1_buf,                                \n" \
+"   const unsigned int N)                              \n" \
+"{                                                         \n" \
+"   int i = get_global_id(0);                              \n" \
+"//	printf(\" %f x %f = %f \\n \", M1_buf[i], M2_buf[i], M1_buf[i]*M2_buf[i]); \n"\
+"   if (i < N)                                         \n" \
+"		M1_buf[i] = tanh(M1_buf[i]) - 1;              \n"\
+"}                                                         \n" \
 "\n";
- 
-////////////////////////////////////////////////////////////////////////////////
- 
-int main(int argc, char** argv) {
+
+const char *source3 = "\n" \
+"__kernel void mul(                                                  \n" \
+"   __global double* M1_buf,                                \n" \
+"   __global double* M2_buf,                               \n" \
+"   const unsigned int K)                              \n" \
+"{                                                         \n" \
+"   int i = get_global_id(0);                              \n" \
+"//	printf(\" %f x %f = %f \\n \", M1_buf[i], M2_buf[i], M1_buf[i]*M2_buf[i]); \n"\
+"   if (i < K) {                                        \n" \
+"		M2_buf[i] = fabs(tan(M2_buf[i]));           \n"\
+"       M2_buf[i] = M1_buf[i] * M2_buf[i];                  \n" \
+"	}                                                         \n" \
+"}                                                         \n" \
+"\n";
+
+int main(int argc, char* argv[]) {
+
+	unsigned int seed = 42, count = 10;
+	int i = 0, j = 0, verbose = 0;
+	double X;
+	struct timeval T1, T2;
+	long time_ms, minimal_time_ms = LONG_MAX;
+	long times[count];
+	int N = 0;
+
+	if (argc > 1)
+		N = atoi(argv[1]);
+	if (N <= 0) {
+		printf("usage: %s N\nwhere N > 0\n", argv[0]);
+		return 1;
+	}
+	if (argc > 2 && argv[2][0] == '-' && argv[2][1] == 'v')
+		verbose = 1;
+
+	double *M1 = malloc(sizeof(double) * N);
+	double *M2 = malloc(sizeof(double) * N / 2);
+
+	srand(seed); 
+
+	//////////////////////////////////////////////////////////////////////////
+
 	int err;                            // error code returned from api calls
 	  
-	float data[DATA_SIZE];              // original data set given to device
-	float results[DATA_SIZE];           // results returned from device
-	unsigned int correct;               // number of correct results returned
- 
-	size_t global;                      // global domain size for our calculation
-	size_t local;                       // local domain size for our calculation
- 
 	cl_platform_id platform;            //
 	cl_device_id device;                // compute device id 
 	cl_context context;                 // compute context
 	cl_command_queue commands;          // compute command queue
-	cl_program program;                 // compute program
-	cl_kernel kernel;                   // compute kernel
+	cl_program program2, program3;      // compute program3
+	cl_kernel kernel2, kernel3;         // compute kernel3
 	
-	cl_mem input;                       // device memory used for the input array
-	cl_mem output;                      // device memory used for the output array
-	
-	// Fill our data set with random float values
-	int i = 0;
-	unsigned int count = DATA_SIZE;
-	for (i = 0; i < count; i++)
-	    data[i] = rand() / (float)RAND_MAX;
-	
-	// Get platform
-	cl_uint num_platforms;
-	err = clGetPlatformIDs(0, NULL, &num_platforms);
-	printf("num_platforms=%d\n", num_platforms);    
-	 
-	err = clGetPlatformIDs(1, &platform, NULL);
-	if (err != CL_SUCCESS) {
-	    printf("Error: Failed to get platform!\n");
-	    return EXIT_FAILURE;
-	}
+	cl_mem M1_buf;                      // device memory used for the M1_buf array
+	cl_mem M2_buf;                      // device memory used for the M2_buf array
 
-	// Connect to a compute device
+	err = clGetPlatformIDs(1, &platform, NULL);
+	if (err != CL_SUCCESS) 
+		panic("Error: Failed to get platform!");
+
 	err = clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, &device, NULL);
-	if (err != CL_SUCCESS) {
-	    printf("Error: Failed to create a device group!\n");
-	    return EXIT_FAILURE;
-	}
+	if (err != CL_SUCCESS) 
+		panic("Error: Failed to create a device group!");
   
-	// Create a compute context 
 	context = clCreateContext(NULL, 1, &device, NULL, NULL, &err);
-	if (!context) {
-	    printf("Error: Failed to create a compute context!\n");
-	    return EXIT_FAILURE;
-	}
+	if (!context) 
+		panic("Error: Failed to create a compute context!");
  
-	// Create a command commands
 	commands = clCreateCommandQueueWithProperties(context, device, NULL, &err);
-	if (!commands) {
-	    printf("Error: Failed to create a command commands!\n");
-	    return EXIT_FAILURE;
-	}
+	if (!commands) 
+		panic("Error: Failed to create a command commands!");
  
-	// Create the compute program from the source buffer
-	program = clCreateProgramWithSource(context, 1, &source, NULL, &err);
-	if (!program) {
-	    printf("Error: Failed to create compute program!\n");
-	    return EXIT_FAILURE;
-	}
+	program2 = clCreateProgramWithSource(context, 1, &source2, NULL, &err);
+	program3 = clCreateProgramWithSource(context, 1, &source3, NULL, &err);
+	if (!program2 || !program3) 
+		panic("Error: Failed to create compute program!");
  
-	// Build the program executable
-	err = clBuildProgram(program, 0, NULL, NULL, NULL, NULL);
+	err = clBuildProgram(program2, 0, NULL, "-cl-std=CL2.0", NULL, NULL);
+	if (err == CL_SUCCESS)
+		err = clBuildProgram(program3, 0, NULL, "-cl-std=CL2.0", NULL, NULL);
 	if (err != CL_SUCCESS) {
 	    size_t len;
 	    char buffer[2048];
  
-	    printf("Error: Failed to build program executable!\n");
-	    clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, sizeof(buffer), buffer, &len);
+	    printf("Error: Failed to build program2 executable!\n");
+	    clGetProgramBuildInfo(program2, device, CL_PROGRAM_BUILD_LOG, sizeof(buffer), buffer, &len);
 	    printf("%s\n", buffer);
 	    exit(1);
 	}
  
-	// Create the compute kernel in the program we wish to run
-	kernel = clCreateKernel(program, "square", &err);
-	if (!kernel || err != CL_SUCCESS) {
-	    printf("Error: Failed to create compute kernel!\n");
-	    exit(1);
-	}
+	kernel2 = clCreateKernel(program2, "ul", &err);
+	kernel3 = clCreateKernel(program3, "mul", &err);
+	if (!kernel2 || !kernel3 || err != CL_SUCCESS) 
+		panic("Error: Failed to create compute kernel2!");
  
-	// Create the input and output arrays in device memory for our calculation
-	input = clCreateBuffer(context,  CL_MEM_READ_ONLY,  sizeof(float) * count, NULL, NULL);
-	output = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float) * count, NULL, NULL);
-	if (!input || !output) {
-	    printf("Error: Failed to allocate device memory!\n");
-	    exit(1);
-	}    
+ 
+	M1_buf = clCreateBuffer(context,  CL_MEM_READ_WRITE,  sizeof(double) * N, NULL, NULL);
+	M2_buf = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(double) * N / 2, NULL, NULL);
+	if (!M1_buf || !M2_buf) 
+		panic("Error: Failed to allocate device memory!");
 	
-	// Write our data set into the input array in device memory 
-	err = clEnqueueWriteBuffer(commands, input, CL_TRUE, 0, sizeof(float) * count, data, 0, NULL, NULL);
-	if (err != CL_SUCCESS) {
-	    printf("Error: Failed to write to source array!\n");
-	    exit(1);
-	}
- 
-	// Set the arguments to our compute kernel
 	err = 0;
-	err  = clSetKernelArg(kernel, 0, sizeof(cl_mem), &input);
-	err |= clSetKernelArg(kernel, 1, sizeof(cl_mem), &output);
-	err |= clSetKernelArg(kernel, 2, sizeof(unsigned int), &count);
+	err  = clSetKernelArg(kernel2, 0, sizeof(cl_mem), &M1_buf);
+	err |= clSetKernelArg(kernel2, 1, sizeof(unsigned int), &N);
 	if (err != CL_SUCCESS) {
-	    printf("Error: Failed to set kernel arguments! %d\n", err);
-	    exit(1);
-	}
- 
-	// Get the maximum work group size for executing the kernel on the device
-	err = clGetKernelWorkGroupInfo(kernel, device, CL_KERNEL_WORK_GROUP_SIZE, sizeof(local), &local, NULL);
-	if (err != CL_SUCCESS) {
-	    printf("Error: Failed to retrieve kernel work group info! %d\n", err);
+	    panic("Error: Failed to set kernel3 arguments!");
 	    exit(1);
 	}
 
-	printf("max work group size = %ld\n", local);
- 
-	// Execute the kernel over the entire range of our 1d input data set
-	// using the maximum number of work group items for this device
-	global = count;
-	err = clEnqueueNDRangeKernel(commands, kernel, 1, NULL, &global, &local, 0, NULL, NULL);
-	if (err) {
-	    printf("Error: Failed to execute kernel!\n");
-	    return EXIT_FAILURE;
-	}
- 
-	// Wait for the command commands to get serviced before reading back results
-	clFinish(commands);
- 
-	// Read back the results from the device to verify the output
-	err = clEnqueueReadBuffer(commands, output, CL_TRUE, 0, sizeof(float) * count, results, 0, NULL, NULL);  
+	unsigned int K = N / 2;
+	err = 0;
+	err  = clSetKernelArg(kernel3, 0, sizeof(cl_mem), &M1_buf);
+	err |= clSetKernelArg(kernel3, 1, sizeof(cl_mem), &M2_buf);
+	err |= clSetKernelArg(kernel3, 2, sizeof(unsigned int), &K);
 	if (err != CL_SUCCESS) {
-	    printf("Error: Failed to read output array! %d\n", err);
+	    panic("Error: Failed to set kernel3 arguments!");
 	    exit(1);
 	}
-	
-	// Validate our results
-	correct = 0;
-	for(i = 0; i < count; i++) {
-	    if(results[i] == data[i] * data[i])
-	        correct++;
+ 
+	//////////////////////////////////////////////////////////////////////////
+
+	for (i = 0; i < count; i++) {
+
+		gettimeofday(&T1, NULL);
+		
+		// 1. Generate ---> 3
+		for (j = 0; j < N; j++)
+			M1[j] = get_double_rand_r(1, A, &seed);
+		for (j = 0; j < N / 2; j++)
+			M2[j] = get_double_rand_r(A, 10 * A, &seed);
+		
+		// 2. Map ---> 3
+		/*for (j = 0; j < N; j++)
+			M1[j] = tanh(M1[j]) - 1;
+		for (j = 0; j < N / 2; j++) {
+			//M2[j] += (j == 0 ? 0 : M2[j - 1]);
+			M2[j] = fabs(tan(M2[j]));
+		}*/	
+
+		if (verbose) {
+			printf("2.Map\n"); 
+			printf("M1:\n"); 
+			print_array(M1, N);
+			printf("M2:\n"); 
+			print_array(M2, N / 2);
+		}
+		// 3. Merge ---> 3
+		//for (j = 0; j < N / 2; j++) 
+		//	M2[j] *= M1[j];
+
+		err = clEnqueueWriteBuffer(commands, M1_buf, CL_TRUE, 0, sizeof(double) * N, M1, 0, NULL, NULL);
+		if (err != CL_SUCCESS) 
+		    panic("Error: Failed to write to M1_buf array!");
+		err = clEnqueueWriteBuffer(commands, M2_buf, CL_TRUE, 0, sizeof(double) * N / 2, M2, 0, NULL, NULL);
+		if (err != CL_SUCCESS) 
+		    panic("Error: Failed to write to M1_buf array!");
+ 
+ 		size_t global2 = N, global3 = K;
+		err = clEnqueueNDRangeKernel(commands, kernel2, 1, NULL, &global2, NULL, 0, NULL, NULL);
+		if (!err)	
+			err = clEnqueueNDRangeKernel(commands, kernel3, 1, NULL, &global3, NULL, 0, NULL, NULL);
+		if (err) 
+		    panic("Error: Failed to execute kernel3!");
+ 		
+		clFinish(commands);
+ 
+		err = clEnqueueReadBuffer(commands, M2_buf, CL_TRUE, 0, sizeof(double) * N / 2, M2, 0, NULL, NULL);  
+		if (err != CL_SUCCESS) 
+		    panic("Error: Failed to read M2_buf array!");
+			
+		if (verbose) {
+			printf("3.Merge\n"); 
+			printf("M2:\n"); 
+			print_array(M2, N / 2);
+		}
+					
+		// 4. Sort ---> 3
+		heapSort(M2, N / 2);
+
+		// 5. Reduce
+		double min_sin = DBL_MAX;
+		X = 0;
+		for (j = 0; j < N / 2; j++)
+			if (M2[j] != 0 && M2[j] < min_sin)
+				min_sin = M2[j];
+		for (j = 0; j < N / 2; j++)
+			if (((int)(M2[j] / min_sin)) % 2 == 0)
+				X += sin(M2[j]);
+		
+		gettimeofday(&T2, NULL);
+		time_ms = 1000 * (T2.tv_sec - T1.tv_sec) + (T2.tv_usec - T1.tv_usec) / 1000;
+		if (time_ms < minimal_time_ms)	  
+			minimal_time_ms = time_ms;
+		times[i] = time_ms;
 	}
-	
-	// Print a brief summary detailing the results
-	printf("Computed '%d/%d' correct values!\n", correct, count);
-	
-	// Shutdown and cleanup
-	clReleaseMemObject(input);
-	clReleaseMemObject(output);
-	clReleaseProgram(program);
-	clReleaseKernel(kernel);
+
+	printf("X=%f, N=%d. Best time (ms): %ld\n", X, N, minimal_time_ms);
+	for (i = 0; i < count; i++)
+		printf("%ld ", times[i]);
+	printf("\n");
+
+	free(M1);
+	free(M2);
+	clReleaseMemObject(M1_buf);
+	clReleaseMemObject(M2_buf);
+	clReleaseProgram(program3);
+	clReleaseKernel(kernel3);
 	clReleaseCommandQueue(commands);
 	clReleaseContext(context);
- 
 	return 0;
 }
+
