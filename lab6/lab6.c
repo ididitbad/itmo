@@ -63,30 +63,30 @@ void panic(char* msg) {
 }
 
 const char *source2 = "\n" \
-"__kernel void ul(                                                  \n" \
-"   __global double* M1_buf,                                \n" \
+"__kernel void ul(                                     \n" \
+"   __global double* M1_buf,                           \n" \
 "   const unsigned int N)                              \n" \
-"{                                                         \n" \
-"   int i = get_global_id(0);                              \n" \
+"{                                                     \n" \
+"   int i = get_global_id(0);                          \n" \
 "//	printf(\" %f x %f = %f \\n \", M1_buf[i], M2_buf[i], M1_buf[i]*M2_buf[i]); \n"\
 "   if (i < N)                                         \n" \
-"		M1_buf[i] = tanh(M1_buf[i]) - 1;              \n"\
-"}                                                         \n" \
+"		M1_buf[i] = tanh(M1_buf[i]) - 1;               \n" \
+"}                                                     \n" \
 "\n";
 
 const char *source3 = "\n" \
-"__kernel void mul(                                                  \n" \
-"   __global double* M1_buf,                                \n" \
-"   __global double* M2_buf,                               \n" \
+"__kernel void mul(                                    \n" \
+"   __global double* M1_buf,                           \n" \
+"   __global double* M2_buf,                           \n" \
 "   const unsigned int K)                              \n" \
-"{                                                         \n" \
-"   int i = get_global_id(0);                              \n" \
+"{                                                     \n" \
+"   int i = get_global_id(0);                          \n" \
 "//	printf(\" %f x %f = %f \\n \", M1_buf[i], M2_buf[i], M1_buf[i]*M2_buf[i]); \n"\
-"   if (i < K) {                                        \n" \
-"		M2_buf[i] = fabs(tan(M2_buf[i]));           \n"\
-"       M2_buf[i] = M1_buf[i] * M2_buf[i];                  \n" \
-"	}                                                         \n" \
-"}                                                         \n" \
+"   if (i < K) {                                       \n" \
+"		M2_buf[i] = fabs(tan(M2_buf[i]));              \n" \
+"       M2_buf[i] = M1_buf[i] * M2_buf[i];             \n" \
+"	}                                                  \n" \
+"}                                                     \n" \
 "\n";
 
 int main(int argc, char* argv[]) {
@@ -123,6 +123,9 @@ int main(int argc, char* argv[]) {
 	cl_command_queue commands;          // compute command queue
 	cl_program program2, program3;      // compute program3
 	cl_kernel kernel2, kernel3;         // compute kernel3
+	cl_event event1, event2;         	// 
+	cl_ulong cl_T1, cl_T2;
+	double cl_times[count];
 	
 	cl_mem M1_buf;                      // device memory used for the M1_buf array
 	cl_mem M2_buf;                      // device memory used for the M2_buf array
@@ -139,9 +142,11 @@ int main(int argc, char* argv[]) {
 	if (!context) 
 		panic("Error: Failed to create a compute context!");
  
-	commands = clCreateCommandQueueWithProperties(context, device, NULL, &err);
+	cl_queue_properties properties[] = { CL_QUEUE_PROPERTIES, CL_QUEUE_PROFILING_ENABLE, 0 };
+	commands = clCreateCommandQueueWithProperties(context, device, properties, &err);
+	if (err == CL_INVALID_VALUE) printf("values\n");
 	if (!commands) 
-		panic("Error: Failed to create a command commands!");
+		panic("Error: Failed to create a command queue!");
  
 	program2 = clCreateProgramWithSource(context, 1, &source2, NULL, &err);
 	program3 = clCreateProgramWithSource(context, 1, &source3, NULL, &err);
@@ -167,7 +172,7 @@ int main(int argc, char* argv[]) {
 		panic("Error: Failed to create compute kernel2!");
  
  
-	M1_buf = clCreateBuffer(context,  CL_MEM_READ_WRITE,  sizeof(double) * N, NULL, NULL);
+	M1_buf = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(double) * N,     NULL, NULL);
 	M2_buf = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(double) * N / 2, NULL, NULL);
 	if (!M1_buf || !M2_buf) 
 		panic("Error: Failed to allocate device memory!");
@@ -175,21 +180,17 @@ int main(int argc, char* argv[]) {
 	err = 0;
 	err  = clSetKernelArg(kernel2, 0, sizeof(cl_mem), &M1_buf);
 	err |= clSetKernelArg(kernel2, 1, sizeof(unsigned int), &N);
-	if (err != CL_SUCCESS) {
+	if (err != CL_SUCCESS)
 	    panic("Error: Failed to set kernel3 arguments!");
-	    exit(1);
-	}
 
 	unsigned int K = N / 2;
 	err = 0;
 	err  = clSetKernelArg(kernel3, 0, sizeof(cl_mem), &M1_buf);
 	err |= clSetKernelArg(kernel3, 1, sizeof(cl_mem), &M2_buf);
 	err |= clSetKernelArg(kernel3, 2, sizeof(unsigned int), &K);
-	if (err != CL_SUCCESS) {
+	if (err != CL_SUCCESS)
 	    panic("Error: Failed to set kernel3 arguments!");
-	    exit(1);
-	}
- 
+
 	//////////////////////////////////////////////////////////////////////////
 
 	for (i = 0; i < count; i++) {
@@ -221,25 +222,26 @@ int main(int argc, char* argv[]) {
 		//for (j = 0; j < N / 2; j++) 
 		//	M2[j] *= M1[j];
 
-		err = clEnqueueWriteBuffer(commands, M1_buf, CL_TRUE, 0, sizeof(double) * N, M1, 0, NULL, NULL);
+		err = clEnqueueWriteBuffer(commands, M1_buf, CL_TRUE, 0, sizeof(double) * N, M1, 0, NULL, &event1);
 		if (err != CL_SUCCESS) 
 		    panic("Error: Failed to write to M1_buf array!");
+
 		err = clEnqueueWriteBuffer(commands, M2_buf, CL_TRUE, 0, sizeof(double) * N / 2, M2, 0, NULL, NULL);
 		if (err != CL_SUCCESS) 
-		    panic("Error: Failed to write to M1_buf array!");
+		    panic("Error: Failed to write to M2_buf array!");
  
  		size_t global2 = N, global3 = K;
 		err = clEnqueueNDRangeKernel(commands, kernel2, 1, NULL, &global2, NULL, 0, NULL, NULL);
 		if (!err)	
 			err = clEnqueueNDRangeKernel(commands, kernel3, 1, NULL, &global3, NULL, 0, NULL, NULL);
 		if (err) 
-		    panic("Error: Failed to execute kernel3!");
+		    panic("Error: Failed to execute kernel!");
  		
-		clFinish(commands);
- 
-		err = clEnqueueReadBuffer(commands, M2_buf, CL_TRUE, 0, sizeof(double) * N / 2, M2, 0, NULL, NULL);  
+		err = clEnqueueReadBuffer(commands, M2_buf, CL_TRUE, 0, sizeof(double) * N / 2, M2, 0, NULL, &event2);  
 		if (err != CL_SUCCESS) 
 		    panic("Error: Failed to read M2_buf array!");
+
+		clFinish(commands);
 			
 		if (verbose) {
 			printf("3.Merge\n"); 
@@ -265,18 +267,35 @@ int main(int argc, char* argv[]) {
 		if (time_ms < minimal_time_ms)	  
 			minimal_time_ms = time_ms;
 		times[i] = time_ms;
+
+		err = clGetEventProfilingInfo(event1, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &cl_T1, NULL);
+		err |= clGetEventProfilingInfo(event2, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &cl_T2, NULL);
+		if (err == CL_PROFILING_INFO_NOT_AVAILABLE) printf("fu\n"); 
+		if (err != CL_SUCCESS) 
+			panic("Error: Failed to get profiling info!");
+		cl_times[i] = ((double)cl_T2 - (double)cl_T1) / 1000000.0; 
+
+		clReleaseEvent(event1);
+		clReleaseEvent(event2);
 	}
 
 	printf("X=%f, N=%d. Best time (ms): %ld\n", X, N, minimal_time_ms);
+	printf("All Times (ms): ");
 	for (i = 0; i < count; i++)
 		printf("%ld ", times[i]);
+	printf("\n");
+	printf("Times in OpenCL (ms): ");
+	for (i = 0; i < count; i++)
+		printf("%f ", cl_times[i]);
 	printf("\n");
 
 	free(M1);
 	free(M2);
 	clReleaseMemObject(M1_buf);
 	clReleaseMemObject(M2_buf);
+	clReleaseProgram(program2);
 	clReleaseProgram(program3);
+	clReleaseKernel(kernel2);
 	clReleaseKernel(kernel3);
 	clReleaseCommandQueue(commands);
 	clReleaseContext(context);
