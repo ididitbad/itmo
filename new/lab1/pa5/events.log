@@ -1,0 +1,194 @@
+0: process 1 (pid  5837, parent  5836) has STARTED with balance $ 0
+0: process 2 (pid  5838, parent  5836) has STARTED with balance $ 0
+2: process 1 received all STARTED messages
+2: process 2 received all STARTED messages
+28: process 1 has DONE with balance $ 0
+38: process 2 has DONE with balance $ 0
+39: process 2 received all DONE messages
+0: process 1 (pid  5863, parent  5862) has STARTED with balance $ 0
+0: process 2 (pid  5864, parent  5862) has STARTED with balance $ 0
+2: process 1 received all STARTED messages
+2: process 2 received all STARTED messages
+28: process 1 has DONE with balance $ 0
+38: process 2 has DONE with balance $ 0
+39: process 2 received all DONE messages
+0: process 1 (pid  5882, parent  5881) has STARTED with balance $ 0
+0: process 2 (pid  5883, parent  5881) has STARTED with balance $ 0
+2: process 1 received all STARTED messages
+2: process 2 received all STARTED messages
+28: process 1 has DONE with balance $ 0
+38: process 2 has DONE with balance $ 0
+39: process 2 received all DONE messages
+0: process 1 (pid  5947, parent  5946) has STARTED with balance $ 0
+0: process 2 (pid  5948, parent  5946) has STARTED with balance $ 0
+2: process 1 received all STARTED messages
+2: process 2 received all STARTED messages
+28: process 1 has DONE with balance $ 0
+38: process 2 has DONE with balance $ 0
+39: process 2 received all DONE messages
+0: process 1 (pid  5968, parent  5967) has STARTED with balance $ 0
+0: process 2 (pid  5969, parent  5967) has STARTED with balance $ 0
+2: process 1 received all STARTED messages
+2: process 2 received all STARTED messages
+28: process 1 has DONE with balance $ 0
+38: process 2 has DONE with balance $ 0
+39: process 2 received all DONE messages
+0: process 1 (pid  5999, parent  5998) has STARTED with balance $ 0
+0: process 2 (pid  6000, parent  5998) has STARTED with balance $ 0
+2: process 1 received all STARTED messages
+2: process 2 received all STARTED messages
+28: process 1 has DONE with balance $ 0
+38: process 2 has DONE with balance $ 0
+39: process 2 received all DONE messages
+0: process 1 (pid  6026, parent  6025) has STARTED with balance $ 0
+0: process 2 (pid  6027, parent  6025) has STARTED with balance $ 0
+2: process 1 received all STARTED messages
+2: process 2 received all STARTED messages
+28: process 1 has DONE with balance $ 0
+38: process 2 has DONE with balance $ 0
+39: process 2 received all DONE messages
+0: process 1 (pid  6064, parent  6063) has STARTED with balance $ 0
+0: process 2 (pid  6065, parent  6063) has STARTED with balance $ 0
+2: process 2 received all STARTED messages
+2: process 1 received all STARTED messages
+28: process 1 has DONE with balance $ 0
+34: process 2 has DONE with balance $ 0
+35: process 2 received all DONE messages
+0: process 1 (pid  6087, parent  6086) has STARTED with balance $ 0
+0: process 2 (pid  6088, parent  6086) has STARTED with balance $ 0
+2: process 2 received all STARTED messages
+2: process 1 received all STARTED messages
+28: process 1 has DONE with balance $ 0
+34: process 2 has DONE with balance $ 0
+35: process 2 received all DONE messages
+40: process 1 received all DONE messages
+0: process 1 (pid  6111, parent  6110) has STARTED with balance $ 0
+0: process 2 (pid  6112, parent  6110) has STARTED with balance $ 0
+2: process 1 received all STARTED messages
+2: process 2 received all STARTED messages
+28: process 1 has DONE with balance $ 0
+34: process 2 has DONE with balance $ 0
+35: process 2 received all DONE messages
+40: process 1 received all DONE messages
+0: process 1 (pid  6118, parent  6117) has STARTED with balance $ 0
+0: process 2 (pid  6119, parent  6117) has STARTED with balance $ 0
+0: process 3 (pid  6120, parent  6117) has STARTED with balance $ 0
+3: process 1 received all STARTED messages
+3: process 2 received all STARTED messages
+3: process 3 received all STARTED messages
+51: process 1 has DONE with balance $ 0
+71: process 2 has DONE with balance $ 0
+82: process 3 has DONE with balance $ 0
+83: process 3 received all DONE messages
+87: process 2 received all DONE messages
+84: process 1 received all DONE messages
+0: process 1 (pid  6173, parent  6172) has STARTED with balance $ 0
+0: process 2 (pid  6174, parent  6172) has STARTED with balance $ 0
+2: process 1 received all STARTED messages
+2: process 2 received all STARTED messages
+28: process 1 has DONE with balance $ 0
+34: process 2 has DONE with balance $ 0
+35: process 2 received all DONE messages
+0: process 1 (pid  6228, parent  6227) has STARTED with balance $ 0
+0: process 2 (pid  6229, parent  6227) has STARTED with balance $ 0
+2: process 2 received all STARTED messages
+2: process 1 received all STARTED messages
+28: process 1 has DONE with balance $ 0
+34: process 2 has DONE with balance $ 0
+35: process 2 received all DONE messages
+0: process 1 (pid  6252, parent  6251) has STARTED with balance $ 0
+0: process 2 (pid  6253, parent  6251) has STARTED with balance $ 0
+2: process 1 received all STARTED messages
+2: process 2 received all STARTED messages
+28: process 1 has DONE with balance $ 0
+34: process 2 has DONE with balance $ 0
+35: process 2 received all DONE messages
+0: process 1 (pid  6271, parent  6267) has STARTED with balance $ 0
+0: process 2 (pid  6272, parent  6267) has STARTED with balance $ 0
+2: process 1 received all STARTED messages
+2: process 2 received all STARTED messages
+28: process 1 has DONE with balance $ 0
+34: process 2 has DONE with balance $ 0
+35: process 2 received all DONE messages
+0: process 1 (pid  6276, parent  6275) has STARTED with balance $ 0
+0: process 2 (pid  6277, parent  6275) has STARTED with balance $ 0
+2: process 1 received all STARTED messages
+2: process 2 received all STARTED messages
+28: process 1 has DONE with balance $ 0
+34: process 2 has DONE with balance $ 0
+35: process 2 received all DONE messages
+0: process 1 (pid  6281, parent  6280) has STARTED with balance $ 0
+0: process 2 (pid  6282, parent  6280) has STARTED with balance $ 0
+2: process 1 received all STARTED messages
+2: process 2 received all STARTED messages
+28: process 1 has DONE with balance $ 0
+34: process 2 has DONE with balance $ 0
+35: process 2 received all DONE messages
+0: process 1 (pid  6286, parent  6285) has STARTED with balance $ 0
+0: process 2 (pid  6287, parent  6285) has STARTED with balance $ 0
+2: process 1 received all STARTED messages
+2: process 2 received all STARTED messages
+28: process 1 has DONE with balance $ 0
+34: process 2 has DONE with balance $ 0
+35: process 2 received all DONE messages
+0: process 1 (pid  6292, parent  6290) has STARTED with balance $ 0
+0: process 2 (pid  6293, parent  6290) has STARTED with balance $ 0
+2: process 1 received all STARTED messages
+2: process 2 received all STARTED messages
+28: process 1 has DONE with balance $ 0
+34: process 2 has DONE with balance $ 0
+35: process 2 received all DONE messages
+0: process 1 (pid  6636, parent  6632) has STARTED with balance $ 0
+0: process 2 (pid  6637, parent  6632) has STARTED with balance $ 0
+2: process 1 received all STARTED messages
+2: process 2 received all STARTED messages
+28: process 1 has DONE with balance $ 0
+34: process 2 has DONE with balance $ 0
+35: process 2 received all DONE messages
+0: process 1 (pid  6678, parent  6677) has STARTED with balance $ 0
+0: process 2 (pid  6679, parent  6677) has STARTED with balance $ 0
+2: process 1 received all STARTED messages
+2: process 2 received all STARTED messages
+28: process 1 has DONE with balance $ 0
+34: process 2 has DONE with balance $ 0
+35: process 2 received all DONE messages
+0: process 1 (pid  6890, parent  6889) has STARTED with balance $ 0
+0: process 2 (pid  6891, parent  6889) has STARTED with balance $ 0
+2: process 2 received all STARTED messages
+2: process 1 received all STARTED messages
+28: process 1 has DONE with balance $ 0
+0: process 1 (pid  6972, parent  6971) has STARTED with balance $ 0
+0: process 2 (pid  6973, parent  6971) has STARTED with balance $ 0
+2: process 1 received all STARTED messages
+2: process 2 received all STARTED messages
+28: process 1 has DONE with balance $ 0
+0: process 1 (pid  7015, parent  7014) has STARTED with balance $ 0
+0: process 2 (pid  7016, parent  7014) has STARTED with balance $ 0
+2: process 1 received all STARTED messages
+2: process 2 received all STARTED messages
+28: process 1 has DONE with balance $ 0
+0: process 1 (pid  7040, parent  7039) has STARTED with balance $ 0
+0: process 2 (pid  7041, parent  7039) has STARTED with balance $ 0
+2: process 1 received all STARTED messages
+2: process 2 received all STARTED messages
+28: process 1 has DONE with balance $ 0
+0: process 1 (pid  7073, parent  7072) has STARTED with balance $ 0
+0: process 2 (pid  7074, parent  7072) has STARTED with balance $ 0
+2: process 1 received all STARTED messages
+2: process 2 received all STARTED messages
+28: process 1 has DONE with balance $ 0
+0: process 1 (pid  7084, parent  7083) has STARTED with balance $ 0
+0: process 2 (pid  7085, parent  7083) has STARTED with balance $ 0
+2: process 2 received all STARTED messages
+2: process 1 received all STARTED messages
+28: process 1 has DONE with balance $ 0
+0: process 1 (pid  7093, parent  7092) has STARTED with balance $ 0
+0: process 2 (pid  7094, parent  7092) has STARTED with balance $ 0
+2: process 2 received all STARTED messages
+2: process 1 received all STARTED messages
+28: process 1 has DONE with balance $ 0
+0: process 1 (pid  7117, parent  7116) has STARTED with balance $ 0
+0: process 2 (pid  7118, parent  7116) has STARTED with balance $ 0
+2: process 1 received all STARTED messages
+2: process 2 received all STARTED messages
+28: process 1 has DONE with balance $ 0
